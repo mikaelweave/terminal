@@ -268,6 +268,10 @@ bool Pane::_Resize(const ResizeDirection& direction, float amount)
     // actualDimension is the size in DIPs of this pane in the direction we're
     // resizing.
     const auto actualDimension = changeWidth ? actualSize.Width : actualSize.Height;
+    if (actualDimension <= 0)
+    {
+        return false;
+    }
 
     _desiredSplitPosition = _ClampSplitPosition(changeWidth, _desiredSplitPosition - amount, actualDimension);
 
@@ -461,6 +465,10 @@ void Pane::_handleOrBubbleManipulation(std::shared_ptr<Pane> sender,
 void Pane::_handleManipulation(const winrt::Windows::Foundation::Point delta)
 {
     const auto scaleFactor = DisplayInformation::GetForCurrentView().RawPixelsPerViewPixel();
+    if (scaleFactor <= 0)
+    {
+        return;
+    }
 
     const auto weAreVertical = _splitState == SplitState::Vertical;
     const winrt::Windows::Foundation::Point translationForUs = (weAreVertical) ? Point{ delta.X, 0 } : Point{ 0, delta.Y };
@@ -505,6 +513,10 @@ void Pane::_handleManipulation(const winrt::Windows::Foundation::Point delta)
         {
             amount = translationForUs.Y;
             actualDimension = base::ClampedNumeric<float>(_root.ActualHeight());
+        }
+        if (actualDimension <= 0)
+        {
+            return;
         }
         const auto scaledAmount = amount * scaleFactor;
         const auto percentDelta = scaledAmount / actualDimension;
@@ -2074,6 +2086,7 @@ void Pane::_ApplySplitDefinitions()
 {
     // Remove our old handler, if we had one.
     _manipulationDeltaRevoker.revoke();
+    _manipulationStartedRevoker.revoke();
 
     if (_splitState == SplitState::Vertical)
     {
@@ -2102,8 +2115,9 @@ void Pane::_ApplySplitDefinitions()
     else
     {
         assert(_IsLeaf());
-        // If we're a leaf, then add a ManipulationDelta handler.
+        // If we're a leaf, then add manipulation handlers.
         _manipulationDeltaRevoker = _root.ManipulationDelta(winrt::auto_revoke, { this, &Pane::_ManipulationDeltaHandler });
+        _manipulationStartedRevoker = _root.ManipulationStarted(winrt::auto_revoke, { this, &Pane::_ManipulationStartedHandler });
     }
 
     _root.ManipulationMode(Xaml::Input::ManipulationModes::TranslateX |
@@ -2482,6 +2496,8 @@ std::pair<std::shared_ptr<Pane>, std::shared_ptr<Pane>> Pane::_Split(SplitDirect
         // parent.
         _gotFocusRevoker.revoke();
         _lostFocusRevoker.revoke();
+        _manipulationDeltaRevoker.revoke();
+        _manipulationStartedRevoker.revoke();
     }
 
     // Remove any children we currently have. We can't add the existing
