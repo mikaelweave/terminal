@@ -45,6 +45,12 @@ Pane::Pane(IPaneContent content, const bool lastFocused) :
 
     _manipulationDeltaRevoker = _root.ManipulationDelta(winrt::auto_revoke, { this, &Pane::_ManipulationDeltaHandler });
     _manipulationStartedRevoker = _root.ManipulationStarted(winrt::auto_revoke, { this, &Pane::_ManipulationStartedHandler });
+    _manipulationCompletedRevoker = _root.ManipulationCompleted(winrt::auto_revoke, { this, &Pane::_ManipulationCompletedHandler });
+
+    _borderFirstPointerEnteredRevoker = _borderFirst.PointerEntered(winrt::auto_revoke, { this, &Pane::_borderPointerEnteredHandler });
+    _borderSecondPointerEnteredRevoker = _borderSecond.PointerEntered(winrt::auto_revoke, { this, &Pane::_borderPointerEnteredHandler });
+    _borderFirstPointerExitedRevoker = _borderFirst.PointerExited(winrt::auto_revoke, { this, &Pane::_borderPointerExitedHandler });
+    _borderSecondPointerExitedRevoker = _borderSecond.PointerExited(winrt::auto_revoke, { this, &Pane::_borderPointerExitedHandler });
 
     // When our border is tapped, make sure to transfer focus to our control.
     // LOAD-BEARING: This will NOT work if the border's BorderBrush is set to
@@ -364,6 +370,12 @@ void Pane::_ManipulationStartedHandler(const winrt::Windows::Foundation::IInspec
     // for this series of events.
     _shouldManipulate = !((transformInControlSpace.X >= 0 && transformInControlSpace.X < contentSize.x) &&
                           (transformInControlSpace.Y >= 0 && transformInControlSpace.Y < contentSize.y));
+
+    _isResizingWithMouse = _shouldManipulate;
+    if (_isResizingWithMouse)
+    {
+        UpdateVisuals();
+    }
 }
 
 // Handler for the _root's ManipulationDelta event. This is the event raised
@@ -424,6 +436,37 @@ void Pane::_ManipulationDeltaHandler(const winrt::Windows::Foundation::IInspecta
 
     // Ask our parent to resize their split.
     ManipulationRequested.raise(shared_from_this(), delta, clicked);
+}
+
+void Pane::_ManipulationCompletedHandler(const winrt::Windows::Foundation::IInspectable& /*sender*/,
+                                         const winrt::Windows::UI::Xaml::Input::ManipulationCompletedRoutedEventArgs& /*args*/)
+{
+    if (_isResizingWithMouse)
+    {
+        _isResizingWithMouse = false;
+        UpdateVisuals();
+    }
+}
+
+void Pane::_borderPointerEnteredHandler(const winrt::Windows::Foundation::IInspectable& /*sender*/,
+                                        const winrt::Windows::UI::Xaml::Input::PointerRoutedEventArgs& /*args*/)
+{
+    // The resize affordance only applies to leaf borders where dragging starts.
+    if (_IsLeaf() && !_showResizeHint)
+    {
+        _showResizeHint = true;
+        UpdateVisuals();
+    }
+}
+
+void Pane::_borderPointerExitedHandler(const winrt::Windows::Foundation::IInspectable& /*sender*/,
+                                       const winrt::Windows::UI::Xaml::Input::PointerRoutedEventArgs& /*args*/)
+{
+    if (_showResizeHint && !_isResizingWithMouse)
+    {
+        _showResizeHint = false;
+        UpdateVisuals();
+    }
 }
 
 // Handler for our child's own ManipulationRequested event. They will pass to us
@@ -2087,6 +2130,7 @@ void Pane::_ApplySplitDefinitions()
     // Remove our old handler, if we had one.
     _manipulationDeltaRevoker.revoke();
     _manipulationStartedRevoker.revoke();
+    _manipulationCompletedRevoker.revoke();
 
     if (_splitState == SplitState::Vertical)
     {
@@ -2118,6 +2162,7 @@ void Pane::_ApplySplitDefinitions()
         // If we're a leaf, then add manipulation handlers.
         _manipulationDeltaRevoker = _root.ManipulationDelta(winrt::auto_revoke, { this, &Pane::_ManipulationDeltaHandler });
         _manipulationStartedRevoker = _root.ManipulationStarted(winrt::auto_revoke, { this, &Pane::_ManipulationStartedHandler });
+        _manipulationCompletedRevoker = _root.ManipulationCompleted(winrt::auto_revoke, { this, &Pane::_ManipulationCompletedHandler });
     }
 
     _root.ManipulationMode(Xaml::Input::ManipulationModes::TranslateX |
@@ -2498,6 +2543,7 @@ std::pair<std::shared_ptr<Pane>, std::shared_ptr<Pane>> Pane::_Split(SplitDirect
         _lostFocusRevoker.revoke();
         _manipulationDeltaRevoker.revoke();
         _manipulationStartedRevoker.revoke();
+        _manipulationCompletedRevoker.revoke();
     }
 
     // Remove any children we currently have. We can't add the existing
@@ -3281,6 +3327,11 @@ void Pane::BroadcastString(const winrt::Microsoft::Terminal::Control::TermContro
 
 winrt::Windows::UI::Xaml::Media::SolidColorBrush Pane::_ComputeBorderColor()
 {
+    if (_IsLeaf() && (_showResizeHint || _isResizingWithMouse))
+    {
+        return _themeResources.focusedBorderBrush;
+    }
+
     if (_lastActive)
     {
         return _themeResources.focusedBorderBrush;

@@ -263,7 +263,16 @@ private:
 
     winrt::Windows::UI::Xaml::UIElement::ManipulationDelta_revoker _manipulationDeltaRevoker;
     winrt::Windows::UI::Xaml::UIElement::ManipulationStarted_revoker _manipulationStartedRevoker;
+    winrt::Windows::UI::Xaml::UIElement::ManipulationCompleted_revoker _manipulationCompletedRevoker;
+
+    winrt::Windows::UI::Xaml::Controls::Border::PointerEntered_revoker _borderFirstPointerEnteredRevoker;
+    winrt::Windows::UI::Xaml::Controls::Border::PointerEntered_revoker _borderSecondPointerEnteredRevoker;
+    winrt::Windows::UI::Xaml::Controls::Border::PointerExited_revoker _borderFirstPointerExitedRevoker;
+    winrt::Windows::UI::Xaml::Controls::Border::PointerExited_revoker _borderSecondPointerExitedRevoker;
+
     bool _shouldManipulate{ false };
+    bool _showResizeHint{ false };
+    bool _isResizingWithMouse{ false };
 
     Borders _borders{ Borders::None };
 
@@ -318,6 +327,13 @@ private:
                                      const winrt::Windows::UI::Xaml::Input::ManipulationStartedRoutedEventArgs& e);
     void _ManipulationDeltaHandler(const winrt::Windows::Foundation::IInspectable& sender,
                                    const winrt::Windows::UI::Xaml::Input::ManipulationDeltaRoutedEventArgs& e);
+    void _ManipulationCompletedHandler(const winrt::Windows::Foundation::IInspectable& sender,
+                                       const winrt::Windows::UI::Xaml::Input::ManipulationCompletedRoutedEventArgs& e);
+
+    void _borderPointerEnteredHandler(const winrt::Windows::Foundation::IInspectable& sender,
+                                      const winrt::Windows::UI::Xaml::Input::PointerRoutedEventArgs& e);
+    void _borderPointerExitedHandler(const winrt::Windows::Foundation::IInspectable& sender,
+                                     const winrt::Windows::UI::Xaml::Input::PointerRoutedEventArgs& e);
 
     std::pair<float, float> _CalcChildrenSizes(const float fullSize) const;
     SnapChildrenSizeResult _CalcSnappedChildrenSizes(const bool widthOrHeight, const float fullSize) const;
