@@ -84,6 +84,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(CloseZoomedPane);
 
         TEST_METHOD(SwapPanes);
+        TEST_METHOD(PaneResizeGuardWithZeroDimension);
 
         TEST_METHOD(NextMRUTab);
         TEST_METHOD(VerifyCommandPaletteTabSwitcherOrder);
@@ -1046,6 +1047,28 @@ namespace TerminalAppLocalTests
             // Inspect the tree to make sure we swapped
             VERIFY_ARE_EQUAL(fourthId, tab->_rootPane->_secondChild->_secondChild->Id().value());
             VERIFY_ARE_EQUAL(thirdId, tab->_rootPane->_secondChild->_firstChild->Id().value());
+        });
+    }
+
+    void TabTests::PaneResizeGuardWithZeroDimension()
+    {
+        auto page = _commonSetup();
+
+        TestOnUIThread([&]() {
+            VERIFY_ARE_EQUAL(1u, page->_tabs.Size());
+            auto tab = page->_GetTabImpl(page->_tabs.GetAt(0));
+
+            // Create a split so the root pane can be resized.
+            page->_SplitPane(nullptr, SplitDirection::Right, 0.5f, page->_MakePane(nullptr, page->_GetFocusedTab(), nullptr));
+
+            VERIFY_IS_FALSE(tab->_rootPane->_IsLeaf());
+
+            // Force the root to report zero actual size. This exercises the
+            // zero-dimension guard path in _Resize.
+            tab->_rootPane->_root = winrt::Windows::UI::Xaml::Controls::Grid{};
+
+            const auto resized = tab->_rootPane->_Resize(ResizeDirection::Left, 0.05f);
+            VERIFY_IS_FALSE(resized);
         });
     }
 
